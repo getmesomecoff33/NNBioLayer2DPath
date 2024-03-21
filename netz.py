@@ -9,15 +9,20 @@ from itertools import islice
 from netzmodelle import BioLinear2D
 from netzmodelle import BioMLP2D
 
+RENDERFLAG = "path"
+SHOWFIGURE = False
+SAVEFIGURE = True
+
+DEBUG = True
 
 SEED = 1
 numpy.random.seed(SEED)
 torch.manual_seed(SEED)
 
-TEST_IMAGE_PATH = "/home/thappek/Documents/data/MNIST/sample_image.webp"
+TEST_IMAGE_PATH = "/home/thappek/Documents/data/MNIST/32.png"
 
 BATCHSIZE = 50
-SHUFFLE =True
+SHUFFLE = True
 
 TRAIN = torchvision.datasets.MNIST(root="/tmp", train=True, transform=torchvision.transforms.ToTensor(), download=True)
 TEST = torchvision.datasets.MNIST(root="/tmp", train=False, transform=torchvision.transforms.ToTensor(), download=True)
@@ -28,6 +33,17 @@ STEPS = 40000
 
 DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
 
+def color_Map(value):
+    if value > 0.9:
+        return "lightcoral"
+    if value > 0.7:
+        return 'teal'
+    if value > 0.5:
+        return 'cadetblue'
+    if value > 0.3:
+        return "cadetblue"
+    return 'darkslategray'
+
 def cycle(iterable):
     while True:
         for x in iterable:
@@ -35,8 +51,8 @@ def cycle(iterable):
 
 def accuracy(network, dataset, device, N=2000, batch_size=BATCHSIZE):
     dataset_loader = torch.utils.data.DataLoader(dataset, batch_size, shuffle=True)
-    correct = 0
     total = 0
+    correct = 0
     for x, labels in islice(dataset_loader, N // batch_size):
         logits = network(x.to(device))
         predicted_labels = torch.argmax(logits, dim=1)
@@ -53,47 +69,54 @@ def loss_Function(network, dataset, device, N=2000, batch_size=BATCHSIZE):
         loss += torch.sum((logits-torch.eye(10,)[labels])**2)
         total += x.size(0)
     return loss/total
-    
-def eval_image(model, image_path):
-    image = Image.open(image_path).convert('L')
-    mean = [0.5] 
+
+def load_image(image_path):
     std = [0.5]
+    mean = [0.5]
+    image = Image.open(image_path).convert("L")
     transform_norm = torchvision.transforms.Compose([torchvision.transforms.Grayscale(num_output_channels=1),torchvision.transforms.ToTensor(), 
     torchvision.transforms.Resize((28,28)),torchvision.transforms.Normalize(mean, std)])
     img_normalized = transform_norm(image).float()
     img_normalized = img_normalized.unsqueeze_(0)
     img_normalized = img_normalized.to(DEVICE)
+    return img_normalized
+    
+def eval_image(model, image_path):
+    img_normalized = load_image(image_path=image_path)
     with torch.no_grad():
         model.eval()  
-        logits = mlp(img_normalized.to(DEVICE))
+        logits = model(img_normalized.to(DEVICE))
         predicted_labels = torch.argmax(logits, dim=1)
-        
+        if DEBUG:
+            return logits
         return predicted_labels[0]
-    
-def render_image(model):
+
+def render_image(model,image_path=None):
+    if RENDERFLAG == "weights":
+        render_image_weights(model=model)
+    if RENDERFLAG == "path":
+        render_image_path(model=model,image_path=image_path)
+
+def render_image_weights(model):
     # ADD FIGURE
     number_of_steps = 100
     figure = pyplot.figure(num=1, clear=True)
     axes = figure.add_subplot()
     number_of_layers = len(model.layers)
     # PLOT NODES
+    # First Layer
+    axes.scatter(numpy.full((model.layers[0].linear.weight.shape[0]),numpy.linspace(0,100,model.layers[0].linear.weight.shape[0],endpoint=False)),numpy.full(model.layers[0].out_coordinates[:,0].detach().numpy().shape,0),s=5,alpha=0.5,color="black")
+    # Middle Layer
     for layer_number in range(1,number_of_layers):
         biolayer = model.layers[layer_number]
         number_of_nodes = biolayer.linear.weight.shape[1]
         nodes_distribution = numpy.full((number_of_nodes),range(number_of_nodes))
         height = numpy.full(model.layers[layer_number].in_coordinates[:,0].detach().numpy().shape,layer_number)
         axes.scatter(nodes_distribution,height,s=5,alpha=0.5,color="black")
-    #    pass
-    axes.scatter(numpy.full((784),numpy.linspace(0,100,784,endpoint=False)),numpy.full(model.layers[0].in_coordinates[:,0].detach().numpy().shape,1),s=5,alpha=0.5,color="black")
-    #axes.scatter(numpy.full((100),range(100)),numpy.full(model.layers[1].in_coordinates[:,0].detach().numpy().shape,1),s=5,alpha=0.5,color="black")
-    #axes.scatter(numpy.full((100),range(100)),numpy.full(model.layers[2].in_coordinates[:,0].detach().numpy().shape,2),s=5,alpha=0.5,color="black")
-    axes.scatter(numpy.full((10),range(0,100,10)),numpy.full(model.layers[-1].out_coordinates[:,0].detach().numpy().shape,2),s=5,alpha=0.5,color="black")
+    #Output Layer
+    axes.scatter(numpy.full((model.layers[-1].linear.weight.shape[0]),range(0,100,model.layers[-1].linear.weight.shape[0])),numpy.full(model.layers[-1].out_coordinates[:,0].detach().numpy().shape,number_of_layers),s=5,alpha=0.5,color="black")
     # GET THE WEIGHTS
-    #out_layer = mlp.layers[-1].out_coordinates.detach().numpy()
-
-    
-    #for layer_number in range(number_of_layers-1):
-    for layer_number in range(0,3):
+    for layer_number in range(number_of_layers):
         biolayer = model.layers[layer_number]
         bio_weights = biolayer.linear.weight.clone()
         bio_weights_shape = bio_weights.shape
@@ -101,14 +124,71 @@ def render_image(model):
         lw = 0
         for i in range(bio_weights_shape[0]):
             for j in range(bio_weights_shape[1]):
-                #out_weights = biolayer.out_coordinates[i].detach().numpy()
-                #in_weights = biolayer.in_coordinates[i].detach().numpy()
                 x = i * 100/bio_weights_shape[0]
                 y = j * 100/bio_weights_shape[1]
                 pyplot.plot([x,y], [layer_number+1,layer_number], lw=2*numpy.abs(bio_weights[i,j].detach().numpy()), color="blue" if bio_weights[i,j]>0 else "red")
-    #pyplot.show()
-    pyplot.savefig('./results/mnist/{0:06d}.png'.format(step-1))
+    if SHOWFIGURE:
+        pyplot.show()
+    if SAVEFIGURE:
+        pyplot.savefig('./results/mnist/{0:06d}.png'.format(step-1))
 
+def render_image_path(model,image_path):
+    #TODO
+    #Tensor label scheint nicht mit der scatternode uebereinzustimmen
+    # Bug in letzetn layer painter
+    # ADD FIGURE
+    number_of_steps = 100
+    figure = pyplot.figure(num=1, clear=True)
+    axes = figure.add_subplot()
+    number_of_layers = len(model.layers)
+    # PLOT NODES
+    # First Layer
+    axes.scatter(numpy.full((model.layers[0].linear.weight.shape[0]),numpy.linspace(0,100,model.layers[0].linear.weight.shape[0],endpoint=False)),numpy.full(model.layers[0].out_coordinates[:,0].detach().numpy().shape,0),s=5,alpha=0.5,color="black")
+    # Middle Layer
+    for layer_number in range(1,number_of_layers):
+        biolayer = model.layers[layer_number]
+        number_of_nodes = biolayer.linear.weight.shape[1]
+        nodes_distribution = numpy.full((number_of_nodes),range(number_of_nodes))
+        height = numpy.full(model.layers[layer_number].in_coordinates[:,0].detach().numpy().shape,layer_number)
+        axes.scatter(nodes_distribution,height,s=5,alpha=0.5,color="black")
+    #Output Layer
+    axes.scatter(numpy.full((model.layers[-1].linear.weight.shape[0]),range(0,100,model.layers[-1].linear.weight.shape[0])),numpy.full(model.layers[-1].out_coordinates[:,0].detach().numpy().shape,number_of_layers),s=5,alpha=0.5,color="black")
+    
+    img_normalizied_1 = load_image(image_path=image_path)
+    img_normalizied = img_normalizied_1
+    #DARK IMAGE MAGIC
+    image_shape = img_normalizied.shape
+    img_normalizied = img_normalizied.reshape(image_shape[0],-1)
+    image_shape = img_normalizied.shape
+    inner_fold = model.layers[0].in_fold
+    tmp_in = img_normalizied.reshape(image_shape[0], inner_fold, int(image_shape[1]/inner_fold))
+    tmp_in = tmp_in[:,:,model.in_perm.long()]
+    for layer_number in range(number_of_layers):
+        tmp_out = model.eval_layer(img_normalizied_1, layer_number)
+        # BLACK TENSOR MAGIC
+        tmp_tensor_out = torch.squeeze(tmp_out).unsqueeze(1)
+        tmp_tensor_in = torch.squeeze(tmp_in)
+        tmp_in = tmp_out
+        transition = tmp_tensor_out * tmp_tensor_in
+        path_values = numpy.abs(transition.detach().numpy())
+        
+        max_path_value= path_values.max()
+
+        print(tmp_tensor_in.shape)
+        print(tmp_tensor_out.shape)
+        for i in range(tmp_tensor_in.shape[0]):
+            for j in range(tmp_tensor_out.shape[0]):
+                x = i * 100/tmp_tensor_in.shape[0]
+                y = j * 100/tmp_tensor_out.shape[0]
+
+                pyplot.plot([x,y], [layer_number,layer_number+1], lw=1, alpha=path_values[j,i]/max_path_value if path_values[j,i]/max_path_value>0 else 0, color=color_Map(path_values[j,i]/max_path_value))
+
+    
+    if SHOWFIGURE:
+        pyplot.show()
+    if SAVEFIGURE:
+        pyplot.savefig('./results/mnist/{0:06d}.png'.format(step-1))
+    print("trap")
 
 if __name__ == '__main__':
     train = torch.utils.data.Subset(TRAIN, range(DATASIZE))
@@ -116,7 +196,7 @@ if __name__ == '__main__':
 
     width = 200
     # Shape = layersize
-    mlp = BioMLP2D(shape=(784,100,100,10))
+    mlp = BioMLP2D(shape=(784,100,100,100,10))
     loss_function = torch.nn.MSELoss()
     optimizer = torch.optim.AdamW(mlp.parameters(),lr=1e-3, weight_decay=0.0)
 
@@ -138,8 +218,8 @@ if __name__ == '__main__':
 
     log = 200
     lamb = 0.01
-    swap_log = 500
-    plot_log = 100
+    swap_log = 50#500
+    plot_log = 50#250
 
     pbar = tqdm(islice(cycle(train_loader), STEPS), total=STEPS)
 
@@ -172,7 +252,7 @@ if __name__ == '__main__':
             mlp.relocate()
         if (step -1) % plot_log == 0:
             #Image Classification
-            image_class = eval_image(mlp, TEST_IMAGE_PATH)
-            print(image_class)
-            render_image(mlp)
+            #image_class = eval_image(mlp, TEST_IMAGE_PATH)
+            #print(image_class)
+            render_image(mlp,TEST_IMAGE_PATH)
             print("trap")

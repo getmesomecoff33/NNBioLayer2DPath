@@ -85,6 +85,22 @@ class BioMLP2D(nn.Module):
         x = x[:,out_perm_inv]
         return x
     
+    def eval_layer(self, x, layer_number):
+        shp = x.shape
+        x = x.reshape(shp[0],-1)
+        shp = x.shape
+        in_fold = self.layers[0].in_fold
+        x = x.reshape(shp[0], in_fold, int(shp[1]/in_fold))
+        x = x[:,:,self.in_perm.long()]
+        x = x.reshape(shp[0], shp[1])
+        f = torch.nn.SiLU()
+        for i in range(self.depth-1):
+            x = f(self.layers[i](x))
+            if layer_number == i:
+                return x
+        x = self.layers[-1](x)
+        return x
+    
     def get_linear_layers(self):
         return self.layers
     
