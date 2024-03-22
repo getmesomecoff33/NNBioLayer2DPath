@@ -163,32 +163,31 @@ def render_image_path(model,image_path):
     inner_fold = model.layers[0].in_fold
     tmp_in = img_normalizied.reshape(image_shape[0], inner_fold, int(image_shape[1]/inner_fold))
     tmp_in = tmp_in[:,:,model.in_perm.long()]
-    for layer_number in range(number_of_layers):
-        tmp_out = model.eval_layer(img_normalizied_1, layer_number)
+
+    layer_iterator = model.layer_Output_Generator(img_normalizied_1)
+    for tmp_out, weights, layer_number in layer_iterator:
         # BLACK TENSOR MAGIC
         tmp_tensor_out = torch.squeeze(tmp_out).unsqueeze(1)
         tmp_tensor_in = torch.squeeze(tmp_in)
         tmp_in = tmp_out
-        transition = tmp_tensor_out * tmp_tensor_in
-        path_values = numpy.abs(transition.detach().numpy())
+        transition = tmp_tensor_in * weights
+        if layer_number == number_of_layers-1:    
+            print("")
+        max_path_value= transition.max()
         
-        max_path_value= path_values.max()
-
-        print(tmp_tensor_in.shape)
-        print(tmp_tensor_out.shape)
         for i in range(tmp_tensor_in.shape[0]):
             for j in range(tmp_tensor_out.shape[0]):
                 x = i * 100/tmp_tensor_in.shape[0]
                 y = j * 100/tmp_tensor_out.shape[0]
-
-                pyplot.plot([x,y], [layer_number,layer_number+1], lw=1, alpha=path_values[j,i]/max_path_value if path_values[j,i]/max_path_value>0 else 0, color=color_Map(path_values[j,i]/max_path_value))
+                alpha = (transition[j,i]/max_path_value).item() if transition[j,i]/max_path_value>0.25 else 0
+                pyplot.plot([x,y], [layer_number,layer_number+1], lw=1, alpha=alpha, color=color_Map(alpha))
 
     
     if SHOWFIGURE:
         pyplot.show()
     if SAVEFIGURE:
         pyplot.savefig('./results/mnist/{0:06d}.png'.format(step-1))
-    print("trap")
+
 
 if __name__ == '__main__':
     train = torch.utils.data.Subset(TRAIN, range(DATASIZE))
@@ -252,7 +251,6 @@ if __name__ == '__main__':
             mlp.relocate()
         if (step -1) % plot_log == 0:
             #Image Classification
-            #image_class = eval_image(mlp, TEST_IMAGE_PATH)
-            #print(image_class)
+            image_class = eval_image(mlp, TEST_IMAGE_PATH)
+            print(image_class)
             render_image(mlp,TEST_IMAGE_PATH)
-            print("trap")

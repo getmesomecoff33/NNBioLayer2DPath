@@ -85,7 +85,7 @@ class BioMLP2D(nn.Module):
         x = x[:,out_perm_inv]
         return x
     
-    def eval_layer(self, x, layer_number):
+    def layer_Output_Generator(self, x):
         shp = x.shape
         x = x.reshape(shp[0],-1)
         shp = x.shape
@@ -94,13 +94,11 @@ class BioMLP2D(nn.Module):
         x = x[:,:,self.in_perm.long()]
         x = x.reshape(shp[0], shp[1])
         f = torch.nn.SiLU()
-        for i in range(self.depth-1):
+        for i in range(self.depth):
             x = f(self.layers[i](x))
-            if layer_number == i:
-                return x
-        x = self.layers[-1](x)
-        return x
-    
+            weight = self.layers[i].linear.weight.clone()
+            yield x, weight, i
+
     def get_linear_layers(self):
         return self.layers
     
