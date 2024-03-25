@@ -93,44 +93,9 @@ def eval_image(model, image_path):
 
 def render_image(model,image_path=None):
     if RENDERFLAG == "weights":
-        render_image_weights(model=model)
+        pass
     if RENDERFLAG == "path":
         render_image_path(model=model,image_path=image_path)
-
-def render_image_weights(model):
-    # ADD FIGURE
-    number_of_steps = 100
-    figure = pyplot.figure(num=1, clear=True)
-    axes = figure.add_subplot()
-    number_of_layers = len(model.layers)
-    # PLOT NODES
-    # First Layer
-    axes.scatter(numpy.full((model.layers[0].linear.weight.shape[0]),numpy.linspace(0,100,model.layers[0].linear.weight.shape[0],endpoint=False)),numpy.full(model.layers[0].out_coordinates[:,0].detach().numpy().shape,0),s=5,alpha=0.5,color="black")
-    # Middle Layer
-    for layer_number in range(1,number_of_layers):
-        biolayer = model.layers[layer_number]
-        number_of_nodes = biolayer.linear.weight.shape[1]
-        nodes_distribution = numpy.full((number_of_nodes),range(number_of_nodes))
-        height = numpy.full(model.layers[layer_number].in_coordinates[:,0].detach().numpy().shape,layer_number)
-        axes.scatter(nodes_distribution,height,s=5,alpha=0.5,color="black")
-    #Output Layer
-    axes.scatter(numpy.full((model.layers[-1].linear.weight.shape[0]),range(0,100,model.layers[-1].linear.weight.shape[0])),numpy.full(model.layers[-1].out_coordinates[:,0].detach().numpy().shape,number_of_layers),s=5,alpha=0.5,color="black")
-    # GET THE WEIGHTS
-    for layer_number in range(number_of_layers):
-        biolayer = model.layers[layer_number]
-        bio_weights = biolayer.linear.weight.clone()
-        bio_weights_shape = bio_weights.shape
-        bio_weights = bio_weights/torch.abs(bio_weights).max()
-        lw = 0
-        for i in range(bio_weights_shape[0]):
-            for j in range(bio_weights_shape[1]):
-                x = i * 100/bio_weights_shape[0]
-                y = j * 100/bio_weights_shape[1]
-                pyplot.plot([x,y], [layer_number+1,layer_number], lw=2*numpy.abs(bio_weights[i,j].detach().numpy()), color="blue" if bio_weights[i,j]>0 else "red")
-    if SHOWFIGURE:
-        pyplot.show()
-    if SAVEFIGURE:
-        pyplot.savefig('./results/mnist/{0:06d}.png'.format(step-1))
 
 def render_image_path(model,image_path):
     #TODO
@@ -182,7 +147,6 @@ def render_image_path(model,image_path):
                 alpha = (transition[j,i]/max_path_value).item() if transition[j,i]/max_path_value>0.25 else 0
                 pyplot.plot([x,y], [layer_number,layer_number+1], lw=1, alpha=alpha, color=color_Map(alpha))
 
-    
     if SHOWFIGURE:
         pyplot.show()
     if SAVEFIGURE:
