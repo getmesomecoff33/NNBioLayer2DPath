@@ -6,10 +6,8 @@ import matplotlib.pyplot as pyplot
 from PIL import Image
 from tqdm.auto import tqdm
 from itertools import islice
-from netzmodelle import BioLinear2D
 from netzmodelle import BioMLP2D
 
-RENDERFLAG = "path"
 SHOWFIGURE = False
 SAVEFIGURE = True
 
@@ -92,10 +90,7 @@ def eval_image(model, image_path):
         return predicted_labels[0]
 
 def render_image(model,image_path=None):
-    if RENDERFLAG == "weights":
-        pass
-    if RENDERFLAG == "path":
-        render_image_path(model=model,image_path=image_path)
+    render_image_path(model=model,image_path=image_path)
 
 def render_image_path(model,image_path):
     #TODO
