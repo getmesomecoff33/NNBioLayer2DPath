@@ -11,13 +11,13 @@ from netzmodelle import BioMLP2D
 SHOWFIGURE = False
 SAVEFIGURE = True
 
-DEBUG = True
+DEBUG = False
 
 SEED = 1
 numpy.random.seed(SEED)
 torch.manual_seed(SEED)
 
-TEST_IMAGE_PATH = "/home/thappek/Documents/data/MNIST/32.png"
+TEST_IMAGE_PATH = "/home/thappek/Documents/data/MNIST/number2.png"
 
 BATCHSIZE = 50
 SHUFFLE = True
@@ -31,16 +31,25 @@ STEPS = 40000
 
 DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
 
+#Color Coding
+HIGHIMPACT = (0.9,"lightcoral")
+MIDIMPACT = (0.6,"teal")
+LOWIMPACT = (0.3,"darkturquoise")
+NOIMPACT = (0.05,"cadetblue")
+NEGLECTABLE =(None, "darkslategray")
+
+LINEWIDTH = 1
+
 def color_Map(value):
-    if value > 0.9:
-        return "lightcoral"
-    if value > 0.7:
-        return 'teal'
-    if value > 0.5:
-        return 'cadetblue'
-    if value > 0.3:
-        return "cadetblue"
-    return 'darkslategray'
+    if value > HIGHIMPACT[0]:
+        return HIGHIMPACT[1]
+    if value > MIDIMPACT[0]:
+        return MIDIMPACT[1]
+    if value > LOWIMPACT[0]:
+        return LOWIMPACT[1]
+    if value > NOIMPACT[0]:
+        return NOIMPACT[1]
+    return NEGLECTABLE[1]
 
 def cycle(iterable):
     while True:
@@ -88,9 +97,6 @@ def eval_image(model, image_path):
         if DEBUG:
             return logits
         return predicted_labels[0]
-
-def render_image(model,image_path=None):
-    render_image_path(model=model,image_path=image_path)
 
 def render_image_path(model,image_path):
     #TODO
@@ -140,7 +146,7 @@ def render_image_path(model,image_path):
                 x = i * 100/tmp_tensor_in.shape[0]
                 y = j * 100/tmp_tensor_out.shape[0]
                 alpha = (transition[j,i]/max_path_value).item() if transition[j,i]/max_path_value>0.25 else 0
-                pyplot.plot([x,y], [layer_number,layer_number+1], lw=1, alpha=alpha, color=color_Map(alpha))
+                pyplot.plot([x,y], [layer_number,layer_number+1], lw=LINEWIDTH, alpha=alpha, color=color_Map(alpha))
 
     if SHOWFIGURE:
         pyplot.show()
@@ -152,32 +158,32 @@ if __name__ == '__main__':
     train = torch.utils.data.Subset(TRAIN, range(DATASIZE))
     train_loader = torch.utils.data.DataLoader(train, batch_size=100, shuffle=True)
 
-    width = 200
     # Shape = layersize
-    mlp = BioMLP2D(shape=(784,100,100,100,10))
+    model = BioMLP2D(shape=(784,100,100,100,100,100,100,10))
     loss_function = torch.nn.MSELoss()
-    optimizer = torch.optim.AdamW(mlp.parameters(),lr=1e-3, weight_decay=0.0)
+    optimizer = torch.optim.AdamW(model.parameters(),lr=1e-3, weight_decay=0.0)
 
     one_hots = torch.eye(10,10).to(DEVICE)
 
-    mlp.eval()
-    print("init accuraxy: {0:.4f}".format(accuracy(mlp,TEST,device=DEVICE)))
+    model.eval()
+    print("init accuraxy: {0:.4f}".format(accuracy(model,TEST,device=DEVICE)))
 
     test_accuracies = []
     train_accuracies = []
 
     step = 0
-    mlp.train()
+    model.train()
 
-    best_train_loss = 1e4
-    best_test_loss = 1e4
+    best_train_loss = 1e4#1e4
+    best_test_loss = 1e4#1e4
     best_train_accuracies = 0
     best_test_accuracies = 0
 
     log = 200
-    lamb = 0.01
-    swap_log = 50#500
-    plot_log = 50#250
+    lamb = 0.0005#0.01
+    weight_factor = 2.0#2.0
+    swap_log = 200#500
+    plot_log = 200#250
 
     pbar = tqdm(islice(cycle(train_loader), STEPS), total=STEPS)
 
@@ -186,30 +192,30 @@ if __name__ == '__main__':
             lamb *= 10
         if step == int(step/2):
             lamb *= 10
-        mlp.train()
+        model.train()
         optimizer.zero_grad()
-        loss_train = loss_function(mlp(x.to(DEVICE)), one_hots[label])
-        cc = mlp.get_compute_connection_cost(weight_factor=2.0,no_penalize_last=True)
+        loss_train = loss_function(model(x.to(DEVICE)), one_hots[label])
+        cc = model.get_compute_connection_cost(weight_factor=weight_factor,no_penalize_last=True)
         total_loss = loss_train + lamb*cc
         total_loss.backward()
         optimizer.step()
 
         if step % log == 0:
             with torch.no_grad():
-                mlp.eval()
-                train_accuracies = accuracy(mlp, train, device=DEVICE).item()
-                test_accuracies = accuracy(mlp, TEST, device=DEVICE).item()
-                train_loss = loss_Function(mlp,train,DEVICE).item()
-                test_loss = loss_Function(mlp, TEST, DEVICE).item()
+                model.eval()
+                train_accuracies = accuracy(model, train, device=DEVICE).item()
+                test_accuracies = accuracy(model, TEST, device=DEVICE).item()
+                train_loss = loss_Function(model,train,DEVICE).item()
+                test_loss = loss_Function(model, TEST, DEVICE).item()
 
-                mlp.train()
+                model.train()
                 pbar.set_description("{:3.3f} | {:3.3f} | {:3.3f} | {:3.3f} | {:3.3f} ".format(train_accuracies, test_accuracies, train_loss, test_loss, cc))
-        step += 1
 
         if step % swap_log  == 0:
-            mlp.relocate()
+            model.relocate()
         if (step -1) % plot_log == 0:
             #Image Classification
-            image_class = eval_image(mlp, TEST_IMAGE_PATH)
+            image_class = eval_image(model, TEST_IMAGE_PATH)
             print(image_class)
-            render_image(mlp,TEST_IMAGE_PATH)
+            render_image_path(model,TEST_IMAGE_PATH)
+        step += 1

@@ -76,9 +76,10 @@ class BioMLP2D(nn.Module):
         x = x[:,:,self.in_perm.long()]
         x = x.reshape(shp[0], shp[1])
         f = torch.nn.SiLU()
+        #f = torch.nn.ReLU()
         for i in range(self.depth-1):
             x = f(self.layers[i](x))
-        x = self.layers[-1](x)
+        x = f(self.layers[-1](x))
         
         out_perm_inv = torch.zeros(self.out_dim, dtype=torch.long)
         out_perm_inv[self.out_perm.long()] = torch.arange(self.out_dim)
@@ -209,7 +210,6 @@ class BioMLP2D(nn.Module):
     
 
 ## ENDE NETZ MODEL
-
 
 if __name__ == '__main__':
     pass
