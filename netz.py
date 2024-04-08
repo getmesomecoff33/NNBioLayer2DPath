@@ -17,7 +17,7 @@ SEED = 1
 numpy.random.seed(SEED)
 torch.manual_seed(SEED)
 
-TEST_IMAGE_PATH = "/home/thappek/Documents/data/MNIST/number2.png"
+TEST_IMAGE_PATH = ""
 
 BATCHSIZE = 50
 SHUFFLE = True
@@ -78,18 +78,17 @@ def loss_Function(network, dataset, device, N=2000, batch_size=BATCHSIZE):
     return loss/total
 
 def load_image(image_path):
-    std = [0.5]
-    mean = [0.5]
     image = Image.open(image_path).convert("L")
     transform_norm = torchvision.transforms.Compose([torchvision.transforms.Grayscale(num_output_channels=1),torchvision.transforms.ToTensor(), 
-    torchvision.transforms.Resize((28,28)),torchvision.transforms.Normalize(mean, std)])
+    torchvision.transforms.Resize((28,28))])
     img_normalized = transform_norm(image).float()
     img_normalized = img_normalized.unsqueeze_(0)
     img_normalized = img_normalized.to(DEVICE)
     return img_normalized
+
+
     
-def eval_image(model, image_path):
-    img_normalized = load_image(image_path=image_path)
+def eval_image(model, img_normalized):    
     with torch.no_grad():
         model.eval()  
         logits = model(img_normalized.to(DEVICE))
@@ -159,7 +158,7 @@ if __name__ == '__main__':
     train_loader = torch.utils.data.DataLoader(train, batch_size=100, shuffle=True)
 
     # Shape = layersize
-    model = BioMLP2D(shape=(784,100,100,100,100,100,100,10))
+    model = BioMLP2D(shape=(784,100,100,100,10))
     loss_function = torch.nn.MSELoss()
     optimizer = torch.optim.AdamW(model.parameters(),lr=1e-3, weight_decay=0.0)
 
@@ -180,7 +179,7 @@ if __name__ == '__main__':
     best_test_accuracies = 0
 
     log = 200
-    lamb = 0.0005#0.01
+    lamb = 0.005#0.01
     weight_factor = 2.0#2.0
     swap_log = 200#500
     plot_log = 200#250
@@ -215,7 +214,10 @@ if __name__ == '__main__':
             model.relocate()
         if (step -1) % plot_log == 0:
             #Image Classification
-            image_class = eval_image(model, TEST_IMAGE_PATH)
+            img_normalized = load_image(image_path=TEST_IMAGE_PATH)
+            image_class = eval_image(model, img_normalized=img_normalized)
             print(image_class)
             render_image_path(model,TEST_IMAGE_PATH)
+        if step == 1000:
+            print(DEBUG)
         step += 1
