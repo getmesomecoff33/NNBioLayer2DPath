@@ -17,7 +17,10 @@ SEED = 1
 numpy.random.seed(SEED)
 torch.manual_seed(SEED)
 
-TEST_IMAGE_PATH = ""
+IMAGE_DIR = ""
+IMAGE_NAME = ""
+
+TEST_IMAGE_PATH = IMAGE_DIR + IMAGE_NAME
 
 BATCHSIZE = 50
 SHUFFLE = True
@@ -32,10 +35,10 @@ STEPS = 40000
 DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
 
 #Color Coding
-HIGHIMPACT = (0.9,"lightcoral")
+HIGHIMPACT = (0.7,"lightcoral")
 MIDIMPACT = (0.6,"teal")
 LOWIMPACT = (0.3,"darkturquoise")
-NOIMPACT = (0.05,"cadetblue")
+NOIMPACT = (0.02,"cadetblue")
 NEGLECTABLE =(None, "darkslategray")
 
 LINEWIDTH = 1
@@ -83,7 +86,7 @@ def load_image(image_path):
     torchvision.transforms.Resize((28,28))])
     img_normalized = transform_norm(image).float()
     img_normalized = img_normalized.unsqueeze_(0)
-    img_normalized = img_normalized.to(DEVICE)
+    #img_normalized = img_normalized.to(DEVICE)
     return img_normalized
 
 
@@ -102,7 +105,6 @@ def render_image_path(model,image_path):
     #Tensor label scheint nicht mit der scatternode uebereinzustimmen
     # Bug in letzetn layer painter
     # ADD FIGURE
-    number_of_steps = 100
     figure = pyplot.figure(num=1, clear=True)
     axes = figure.add_subplot()
     number_of_layers = len(model.layers)
@@ -130,12 +132,16 @@ def render_image_path(model,image_path):
     tmp_in = tmp_in[:,:,model.in_perm.long()]
 
     layer_iterator = model.layer_Output_Generator(img_normalizied_1)
-    for tmp_out, weights, layer_number in layer_iterator:
+    for luLayer, weights, layer_number in layer_iterator:
         # BLACK TENSOR MAGIC
+        tmp_out = luLayer
+        #if layer_number == number_of_layers - 1:
+         #   tmp_out = purLayer
         tmp_tensor_out = torch.squeeze(tmp_out).unsqueeze(1)
         tmp_tensor_in = torch.squeeze(tmp_in)
         tmp_in = tmp_out
-        transition = tmp_tensor_in * weights
+        #transition = tmp_tensor_in * weights
+        transition = tmp_tensor_out * weights
         if layer_number == number_of_layers-1:    
             print("")
         max_path_value= transition.max()
@@ -158,7 +164,7 @@ if __name__ == '__main__':
     train_loader = torch.utils.data.DataLoader(train, batch_size=100, shuffle=True)
 
     # Shape = layersize
-    model = BioMLP2D(shape=(784,100,100,100,10))
+    model = BioMLP2D(shape=(784,100,100,100,100,10))
     loss_function = torch.nn.MSELoss()
     optimizer = torch.optim.AdamW(model.parameters(),lr=1e-3, weight_decay=0.0)
 
@@ -178,10 +184,10 @@ if __name__ == '__main__':
     best_train_accuracies = 0
     best_test_accuracies = 0
 
-    log = 200
-    lamb = 0.005#0.01
+    log = 200#200
+    lamb = 0.0005#0.01
     weight_factor = 2.0#2.0
-    swap_log = 200#500
+    swap_log = 50#500
     plot_log = 200#250
 
     pbar = tqdm(islice(cycle(train_loader), STEPS), total=STEPS)
@@ -218,6 +224,4 @@ if __name__ == '__main__':
             image_class = eval_image(model, img_normalized=img_normalized)
             print(image_class)
             render_image_path(model,TEST_IMAGE_PATH)
-        if step == 1000:
-            print(DEBUG)
         step += 1
