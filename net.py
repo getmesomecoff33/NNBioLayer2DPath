@@ -1,4 +1,5 @@
 import os
+import io
 import json
 import numpy
 import torch
@@ -13,10 +14,14 @@ from tqdm.auto import tqdm
 from itertools import islice
 from netzmodelle import BioMLP2D
 
+from makescreenshot import load_image
+from imageToWall import pipline_entry
+
 SHOWFIGURE = False
 SAVEFIGURE = True
 
 DEBUG = False
+SENDTOWALL = False
 LOADFROMDATASET = False
 
 SEED = 1
@@ -30,7 +35,7 @@ with open("config.json") as file:
     RAWDATA = config["RawData"]
     DATAPATH = config["DataPath"]
 
-TEST_IMAGE_PATH = IMAGE_DIR + IMAGE_NAME
+
 DATADIR = os.path.join(DATAPATH,RAWDATA)
 
 BATCHSIZE = 50
@@ -50,8 +55,17 @@ LINEWIDTH = 1
 
 CLASSES = []
 
+def plot_to_array(fig):
+    fig.canvas.draw()
+    io_buf = io.BytesIO()
+    fig.savefig(io_buf, format='raw')
+    io_buf.seek(0)
+    img_arr = numpy.reshape(numpy.frombuffer(io_buf.getvalue(), dtype=numpy.uint8),
+                     newshape=(int(fig.bbox.bounds[3]), int(fig.bbox.bounds[2]), -1))
+    io_buf.close()
+    return img_arr
+
 def load_Data(subset):
-    #TODO load the created trainingsdataset
     if subset == "train":
         return torch.load("tensortrain.pt")
     if subset == "val":
@@ -97,19 +111,6 @@ def get_classes(dataDir):
     classes = sorted(classes)
     classesIndex = { i:classes[i] for i in range(len(classes))}
     return classesIndex
-
-def invert_image(image):
-    invertedImage = 1-image
-    imgWhithoutNoise = torch.nn.functional.relu(invertedImage-0.01)
-    imgWhithoutNoise[imgWhithoutNoise!=0] = 1
-    return imgWhithoutNoise
-
-def load_image_from_path(image_path):
-    image = Image.open(image_path).convert("L")    
-    img_normalized = IMAGETRANSFORMER(image).float()
-    img_inverted = invert_image(img_normalized)
-    #img_normalized = img_normalized.to(DEVICE)
-    return img_inverted
 
 def load_image_from_dataset(dataset):
     index = random.randint(0, len(dataset))
@@ -179,15 +180,15 @@ def render_image_path(model,img_normalizied):
                 y = j * 100/tmp_tensor_out.shape[0]
                 alpha = (transition[j,i]/max_path_value).item() if transition[j,i]/max_path_value>0.35 else 0
                 pyplot.plot([x,y], [layer_number,layer_number+1], lw=LINEWIDTH, alpha=alpha, color=CMAP(alpha))
-
+    numpyArray = plot_to_array(figure)
     if SHOWFIGURE:
         pyplot.show()
     if SAVEFIGURE:
         pyplot.savefig('./results/mnist/{0:06d}.png'.format(step-1))
+    return numpyArray
 
 
 if __name__ == '__main__':
-    #train = torch.utils.data.Subset(TRAIN, range(DATASIZE))
     train = load_Data("train")
     test = load_Data("test")
     val = load_Data("val")
@@ -196,7 +197,7 @@ if __name__ == '__main__':
     CLASSES = get_classes(DATADIR)
 
     # Shape = layersize
-    model = BioMLP2D(shape=(784,100,100,100,100,10))
+    model = BioMLP2D(shape=(784,100,100,100,100,100,100, 10))
     loss_function = torch.nn.MSELoss()
     optimizer = torch.optim.AdamW(model.parameters(),lr=1e-3, weight_decay=0.0)
 
@@ -231,7 +232,6 @@ if __name__ == '__main__':
             lamb *= 10
         model.train()
         optimizer.zero_grad()
-        #loss_train = loss_function(model(x.to(DEVICE)), one_hots[label.long()])
         loss_train = loss_function(model(x.to(DEVICE)), one_hots[label.squeeze().long()])
         cc = model.get_compute_connection_cost(weight_factor=weight_factor,no_penalize_last=True)
         total_loss = loss_train + lamb*cc
@@ -256,7 +256,7 @@ if __name__ == '__main__':
             if LOADFROMDATASET:
                 img_normalized, label = load_image_from_dataset(val)
             if not LOADFROMDATASET:
-                img_normalized = load_image_from_path(image_path=TEST_IMAGE_PATH)
+                img_normalized = load_image()
             predictedLabel, certainty = eval_image(model, img_normalized=img_normalized)
             imageClass = CLASSES[predictedLabel]
             print("I thinke it's a {} with {} percent certainty".format(imageClass, certainty*100))
@@ -267,6 +267,8 @@ if __name__ == '__main__':
                 if predictedLabel == label:
                     print("Good job, just lucky though...")
 
-            render_image_path(model,img_normalized)
+            image = render_image_path(model,img_normalized)
+            if SENDTOWALL:
+                pipline_entry(image)
             pass
         step += 1
