@@ -1,7 +1,9 @@
 # NNBioLayerPathRender
 
 This repository contains the modifications and scripts to render the decision path through a BioLayer-Network. For more information please check out the original project:
-[Brain-inspired Modular Training](https://github.com/KindXiaoming/BIMT)
+[Brain-inspired Modular Training](https://github.com/KindXiaoming/BIMT).
+
+Modifyed to work with Google-Quickdraw-Dataset.
 
 ## Installation
 
@@ -14,6 +16,17 @@ See requierments.txt
 Additional requierments can occure du to the used packages
 
 ## Usage
+
+Make a new file named "config.json" to the projects top level dir.
+Within the file include the required datadirs. Required are:
+
+* DataPath: Path where all the data is located.
+* RawData: Dirname within DataPath where raw data is located.
+* ImagePath: For single image evaluation, path to the image.
+* ImageName: For single image evaluation, name of the image.
+
+Run prepardata.py to create a torch trainingsdataset
+run net.py to beginn the trainingprocess
 
 ### Train Network
 

@@ -1,5 +1,10 @@
+import os
+import json
 import numpy
 import torch
+import random
+import torch.utils
+import torch.utils.data
 import torchvision
 import matplotlib.pyplot as pyplot
 
@@ -12,22 +17,27 @@ SHOWFIGURE = False
 SAVEFIGURE = True
 
 DEBUG = False
+LOADFROMDATASET = False
 
 SEED = 1
 numpy.random.seed(SEED)
 torch.manual_seed(SEED)
 
-IMAGE_DIR = ""
-IMAGE_NAME = ""
+with open("config.json") as file:
+    config = json.load(file)
+    IMAGE_DIR = config["ImageDir"]
+    IMAGE_NAME = config["ImageName"]
+    RAWDATA = config["RawData"]
+    DATAPATH = config["DataPath"]
 
 TEST_IMAGE_PATH = IMAGE_DIR + IMAGE_NAME
+DATADIR = os.path.join(DATAPATH,RAWDATA)
 
 BATCHSIZE = 50
 SHUFFLE = True
 
-TRAIN = torchvision.datasets.MNIST(root="/tmp", train=True, transform=torchvision.transforms.ToTensor(), download=True)
-TEST = torchvision.datasets.MNIST(root="/tmp", train=False, transform=torchvision.transforms.ToTensor(), download=True)
-TRAIN_LOADER = torch.utils.data.DataLoader(TRAIN, BATCHSIZE, SHUFFLE)
+
+IMAGETRANSFORMER = torchvision.transforms.Compose([torchvision.transforms.Grayscale(num_output_channels=1),torchvision.transforms.ToTensor(), torchvision.transforms.Resize((28,28))])
 
 DATASIZE = 60000
 STEPS = 40000
@@ -35,24 +45,19 @@ STEPS = 40000
 DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
 
 #Color Coding
-HIGHIMPACT = (0.7,"lightcoral")
-MIDIMPACT = (0.6,"teal")
-LOWIMPACT = (0.3,"darkturquoise")
-NOIMPACT = (0.02,"cadetblue")
-NEGLECTABLE =(None, "darkslategray")
-
+CMAP = pyplot.colormaps.get_cmap('jet')
 LINEWIDTH = 1
 
-def color_Map(value):
-    if value > HIGHIMPACT[0]:
-        return HIGHIMPACT[1]
-    if value > MIDIMPACT[0]:
-        return MIDIMPACT[1]
-    if value > LOWIMPACT[0]:
-        return LOWIMPACT[1]
-    if value > NOIMPACT[0]:
-        return NOIMPACT[1]
-    return NEGLECTABLE[1]
+CLASSES = []
+
+def load_Data(subset):
+    #TODO load the created trainingsdataset
+    if subset == "train":
+        return torch.load("tensortrain.pt")
+    if subset == "val":
+        return torch.load("tensorval.pt")
+    return torch.load("tensortest.pt")
+    
 
 def cycle(iterable):
     while True:
@@ -64,10 +69,12 @@ def accuracy(network, dataset, device, N=2000, batch_size=BATCHSIZE):
     total = 0
     correct = 0
     for x, labels in islice(dataset_loader, N // batch_size):
+        labels = labels.squeeze()
         logits = network(x.to(device))
         predicted_labels = torch.argmax(logits, dim=1)
         correct += torch.sum(predicted_labels == labels.to(device))
         total += x.size(0)
+
     return correct/total
 
 def loss_Function(network, dataset, device, N=2000, batch_size=BATCHSIZE):
@@ -75,32 +82,51 @@ def loss_Function(network, dataset, device, N=2000, batch_size=BATCHSIZE):
     loss = 0
     total = 0
     for x, labels in islice(dataset_loader, N // batch_size):
+        labels = labels.squeeze()
         logits = network(x.to(device))
-        loss += torch.sum((logits-torch.eye(10,)[labels])**2)
+        loss += torch.sum((logits-torch.eye(10,)[labels.long()])**2)
         total += x.size(0)
     return loss/total
 
-def load_image(image_path):
-    image = Image.open(image_path).convert("L")
-    transform_norm = torchvision.transforms.Compose([torchvision.transforms.Grayscale(num_output_channels=1),torchvision.transforms.ToTensor(), 
-    torchvision.transforms.Resize((28,28))])
-    img_normalized = transform_norm(image).float()
-    img_normalized = img_normalized.unsqueeze_(0)
-    #img_normalized = img_normalized.to(DEVICE)
-    return img_normalized
+def get_classes(dataDir):
+    classes = []
+    files = os.listdir(dataDir) 
+    for file in files:
+        name = file.split("_")[-1].split(".")[0]
+        classes.append(name)
+    classes = sorted(classes)
+    classesIndex = { i:classes[i] for i in range(len(classes))}
+    return classesIndex
 
+def invert_image(image):
+    invertedImage = 1-image
+    imgWhithoutNoise = torch.nn.functional.relu(invertedImage-0.01)
+    imgWhithoutNoise[imgWhithoutNoise!=0] = 1
+    return imgWhithoutNoise
+
+def load_image_from_path(image_path):
+    image = Image.open(image_path).convert("L")    
+    img_normalized = IMAGETRANSFORMER(image).float()
+    img_inverted = invert_image(img_normalized)
+    #img_normalized = img_normalized.to(DEVICE)
+    return img_inverted
+
+def load_image_from_dataset(dataset):
+    index = random.randint(0, len(dataset))
+    image, label = dataset[index]
+    return image.squeeze().unsqueeze_(0), int(label)
 
     
 def eval_image(model, img_normalized):    
     with torch.no_grad():
         model.eval()  
         logits = model(img_normalized.to(DEVICE))
-        predicted_labels = torch.argmax(logits, dim=1)
-        if DEBUG:
-            return logits
-        return predicted_labels[0]
+        labelTensor = torch.argmax(logits, dim=1)
+        label = int(labelTensor[0])
+        certainty = logits[0][label]
+        return label, certainty
 
-def render_image_path(model,image_path):
+def render_image_path(model,img_normalizied):
     #TODO
     #Tensor label scheint nicht mit der scatternode uebereinzustimmen
     # Bug in letzetn layer painter
@@ -121,9 +147,10 @@ def render_image_path(model,image_path):
     #Output Layer
     axes.scatter(numpy.full((model.layers[-1].linear.weight.shape[0]),range(0,100,model.layers[-1].linear.weight.shape[0])),numpy.full(model.layers[-1].out_coordinates[:,0].detach().numpy().shape,number_of_layers),s=5,alpha=0.5,color="black")
     
-    img_normalizied_1 = load_image(image_path=image_path)
-    img_normalizied = img_normalizied_1
+    
+    
     #DARK IMAGE MAGIC
+    img_normalizied_1 = img_normalized
     image_shape = img_normalizied.shape
     img_normalizied = img_normalizied.reshape(image_shape[0],-1)
     image_shape = img_normalizied.shape
@@ -150,8 +177,8 @@ def render_image_path(model,image_path):
             for j in range(tmp_tensor_out.shape[0]):
                 x = i * 100/tmp_tensor_in.shape[0]
                 y = j * 100/tmp_tensor_out.shape[0]
-                alpha = (transition[j,i]/max_path_value).item() if transition[j,i]/max_path_value>0.25 else 0
-                pyplot.plot([x,y], [layer_number,layer_number+1], lw=LINEWIDTH, alpha=alpha, color=color_Map(alpha))
+                alpha = (transition[j,i]/max_path_value).item() if transition[j,i]/max_path_value>0.35 else 0
+                pyplot.plot([x,y], [layer_number,layer_number+1], lw=LINEWIDTH, alpha=alpha, color=CMAP(alpha))
 
     if SHOWFIGURE:
         pyplot.show()
@@ -160,8 +187,13 @@ def render_image_path(model,image_path):
 
 
 if __name__ == '__main__':
-    train = torch.utils.data.Subset(TRAIN, range(DATASIZE))
+    #train = torch.utils.data.Subset(TRAIN, range(DATASIZE))
+    train = load_Data("train")
+    test = load_Data("test")
+    val = load_Data("val")
     train_loader = torch.utils.data.DataLoader(train, batch_size=100, shuffle=True)
+
+    CLASSES = get_classes(DATADIR)
 
     # Shape = layersize
     model = BioMLP2D(shape=(784,100,100,100,100,10))
@@ -171,7 +203,7 @@ if __name__ == '__main__':
     one_hots = torch.eye(10,10).to(DEVICE)
 
     model.eval()
-    print("init accuraxy: {0:.4f}".format(accuracy(model,TEST,device=DEVICE)))
+    print("init accuraxy: {0:.4f}".format(accuracy(model,test,device=DEVICE)))
 
     test_accuracies = []
     train_accuracies = []
@@ -199,7 +231,8 @@ if __name__ == '__main__':
             lamb *= 10
         model.train()
         optimizer.zero_grad()
-        loss_train = loss_function(model(x.to(DEVICE)), one_hots[label])
+        #loss_train = loss_function(model(x.to(DEVICE)), one_hots[label.long()])
+        loss_train = loss_function(model(x.to(DEVICE)), one_hots[label.squeeze().long()])
         cc = model.get_compute_connection_cost(weight_factor=weight_factor,no_penalize_last=True)
         total_loss = loss_train + lamb*cc
         total_loss.backward()
@@ -209,9 +242,9 @@ if __name__ == '__main__':
             with torch.no_grad():
                 model.eval()
                 train_accuracies = accuracy(model, train, device=DEVICE).item()
-                test_accuracies = accuracy(model, TEST, device=DEVICE).item()
+                test_accuracies = accuracy(model, test, device=DEVICE).item()
                 train_loss = loss_Function(model,train,DEVICE).item()
-                test_loss = loss_Function(model, TEST, DEVICE).item()
+                test_loss = loss_Function(model, test, DEVICE).item()
 
                 model.train()
                 pbar.set_description("{:3.3f} | {:3.3f} | {:3.3f} | {:3.3f} | {:3.3f} ".format(train_accuracies, test_accuracies, train_loss, test_loss, cc))
@@ -220,8 +253,20 @@ if __name__ == '__main__':
             model.relocate()
         if (step -1) % plot_log == 0:
             #Image Classification
-            img_normalized = load_image(image_path=TEST_IMAGE_PATH)
-            image_class = eval_image(model, img_normalized=img_normalized)
-            print(image_class)
-            render_image_path(model,TEST_IMAGE_PATH)
+            if LOADFROMDATASET:
+                img_normalized, label = load_image_from_dataset(val)
+            if not LOADFROMDATASET:
+                img_normalized = load_image_from_path(image_path=TEST_IMAGE_PATH)
+            predictedLabel, certainty = eval_image(model, img_normalized=img_normalized)
+            imageClass = CLASSES[predictedLabel]
+            print("I thinke it's a {} with {} percent certainty".format(imageClass, certainty*100))
+            if LOADFROMDATASET:
+                if not predictedLabel == label:
+                    realLabel = CLASSES[label]
+                    print("In reality its a {} you piece of...".format(realLabel))
+                if predictedLabel == label:
+                    print("Good job, just lucky though...")
+
+            render_image_path(model,img_normalized)
+            pass
         step += 1
