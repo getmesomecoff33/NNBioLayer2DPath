@@ -12,6 +12,7 @@ WIP
 ## Dependencies
 
 See requierments.txt
+For using the Gui-Version tkinter is requiert
 
 Additional requierments can occure du to the used packages
 
@@ -27,30 +28,6 @@ Within the file include the required datadirs. Required are:
 
 Run prepardata.py to create a torch trainingsdataset
 run net.py to beginn the trainingprocess
-
-### Train Network
-
-To train a network run `netz.py`
-All training related options can be found under the main-section of `netz.py`
-
-### Show Rendered Path
-
-In `netz.py` set line 11:
-
-    SHOWFIGURE = True
-
-### Save Rendered Path
-
-In `netz.py`set line 12:
-
-    SAVEFIGURE = True
-
-By default the images are saved in ./results/mnist/
-
-### Take a Screenshot
-
-Run `makescreenshot.py`
-Currently not working du to attemted privilege escalation by the packackage.
 
 ## Limitations
 

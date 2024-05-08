@@ -42,9 +42,7 @@ class PaintApp(tk.Tk):
     def paint(self, event):
         x, y = event.x, event.y
         if self.last_x is not None and self.last_y is not None:
-            #self.canvas.create_line(self.last_x, self.last_y, x, y, fill="black", width=5)
             self.canvas.create_oval(x-2, y-2, x+2, y+2, fill="black", width=5)
-            #self.draw.line([self.last_x, self.last_y, x, y], fill="black", width=5)
         self.last_x, self.last_y = x, y
 
 
