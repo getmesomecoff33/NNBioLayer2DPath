@@ -127,7 +127,7 @@ def eval_image(model, img_normalized):
         certainty = logits[0][label]
         return label, certainty
 
-def render_image_path(model,img_normalizied):
+def render_image_path(model,img_normalizied,step):
     #TODO
     #Tensor label scheint nicht mit der scatternode uebereinzustimmen
     # Bug in letzetn layer painter
@@ -151,7 +151,7 @@ def render_image_path(model,img_normalizied):
     
     
     #DARK IMAGE MAGIC
-    img_normalizied_1 = img_normalized
+    img_normalizied_1 = img_normalizied#img_normalized
     image_shape = img_normalizied.shape
     img_normalizied = img_normalizied.reshape(image_shape[0],-1)
     image_shape = img_normalizied.shape
@@ -188,7 +188,7 @@ def render_image_path(model,img_normalizied):
     return numpyArray
 
 
-if __name__ == '__main__':
+def yield_training_loop():
     train = load_Data("train")
     test = load_Data("test")
     val = load_Data("val")
@@ -197,7 +197,7 @@ if __name__ == '__main__':
     CLASSES = get_classes(DATADIR)
 
     # Shape = layersize
-    model = BioMLP2D(shape=(784,100,100,100,100,100,100, 10))
+    model = BioMLP2D(shape=(784,100,100,100,100,100, 10))
     loss_function = torch.nn.MSELoss()
     optimizer = torch.optim.AdamW(model.parameters(),lr=1e-3, weight_decay=0.0)
 
@@ -219,7 +219,7 @@ if __name__ == '__main__':
 
     log = 200#200
     lamb = 0.0005#0.01
-    weight_factor = 2.0#2.0
+    weight_factor = 1.0#2.0
     swap_log = 50#500
     plot_log = 200#250
 
@@ -252,23 +252,14 @@ if __name__ == '__main__':
         if step % swap_log  == 0:
             model.relocate()
         if (step -1) % plot_log == 0:
-            #Image Classification
-            if LOADFROMDATASET:
-                img_normalized, label = load_image_from_dataset(val)
-            if not LOADFROMDATASET:
-                img_normalized = load_image()
-            predictedLabel, certainty = eval_image(model, img_normalized=img_normalized)
-            imageClass = CLASSES[predictedLabel]
-            print("I thinke it's a {} with {} percent certainty".format(imageClass, certainty*100))
-            if LOADFROMDATASET:
-                if not predictedLabel == label:
-                    realLabel = CLASSES[label]
-                    print("In reality its a {} you piece of...".format(realLabel))
-                if predictedLabel == label:
-                    print("Good job, just lucky though...")
-
-            image = render_image_path(model,img_normalized)
-            if SENDTOWALL:
-                pipline_entry(image)
-            pass
+            yield model, CLASSES#Image Classification
         step += 1
+
+if __name__ == '__main__':
+    step = 0
+    for model, classes in yield_training_loop():
+        img_normalized = load_image()
+        predictedLabel, certainty = eval_image(model, img_normalized=img_normalized)
+        image = render_image_path(model,img_normalized, step)
+        step += 1
+        print(classes[predictedLabel])
