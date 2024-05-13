@@ -170,16 +170,23 @@ def render_image_path(model,img_normalizied,step):
         tmp_in = tmp_out
         #transition = tmp_tensor_in * weights
         transition = tmp_tensor_out * weights
-        if layer_number == number_of_layers-1:    
-            print("")
+            
         max_path_value= transition.max()
-        
-        for i in range(tmp_tensor_in.shape[0]):
-            for j in range(tmp_tensor_out.shape[0]):
-                x = i * 100/tmp_tensor_in.shape[0]
-                y = j * 100/tmp_tensor_out.shape[0]
-                alpha = (transition[j,i]/max_path_value).item() if transition[j,i]/max_path_value>0.35 else 0
-                pyplot.plot([x,y], [layer_number,layer_number+1], lw=LINEWIDTH, alpha=alpha, color=CMAP(alpha))
+        relevant_paths = (transition >= max_path_value/1.5).nonzero(as_tuple=False)
+        for g in relevant_paths:
+            i = g[1]
+            j = g[0]
+            x = i * 100/tmp_tensor_in.shape[0]
+            y = j * 100/tmp_tensor_out.shape[0]
+            alpha = (transition[j,i]/max_path_value).item() if transition[j,i]/max_path_value>0.35 else 0
+            pyplot.plot([x,y], [layer_number,layer_number+1], lw=LINEWIDTH, alpha=alpha, color=CMAP(alpha))
+    #numpyAr
+        #for i in range(tmp_tensor_in.shape[0]):
+        #    for j in range(tmp_tensor_out.shape[0]):
+        #        x = i * 100/tmp_tensor_in.shape[0]
+        #        y = j * 100/tmp_tensor_out.shape[0]
+        #        alpha = (transition[j,i]/max_path_value).item() if transition[j,i]/max_path_value>0.35 else 0
+        #        pyplot.plot([x,y], [layer_number,layer_number+1], lw=LINEWIDTH, alpha=alpha, color=CMAP(alpha))
     numpyArray = plot_to_array(figure)
     if SHOWFIGURE:
         pyplot.show()
@@ -204,7 +211,7 @@ def yield_training_loop():
     one_hots = torch.eye(10,10).to(DEVICE)
 
     model.eval()
-    print("init accuraxy: {0:.4f}".format(accuracy(model,test,device=DEVICE)))
+    #print("init accuraxy: {0:.4f}".format(accuracy(model,test,device=DEVICE)))
 
     test_accuracies = []
     train_accuracies = []
@@ -221,15 +228,16 @@ def yield_training_loop():
     lamb = 0.0005#0.01
     weight_factor = 1.0#2.0
     swap_log = 50#500
-    plot_log = 200#250
+    plot_log = 25#200#250
 
-    pbar = tqdm(islice(cycle(train_loader), STEPS), total=STEPS)
+    pbar = tqdm(islice(cycle(train_loader), STEPS), total=STEPS,disable=True)
 
     for x, label in pbar:
         if step == int(step/4):
             lamb *= 10
         if step == int(step/2):
             lamb *= 10
+        
         model.train()
         optimizer.zero_grad()
         loss_train = loss_function(model(x.to(DEVICE)), one_hots[label.squeeze().long()])
@@ -252,6 +260,7 @@ def yield_training_loop():
         if step % swap_log  == 0:
             model.relocate()
         if (step -1) % plot_log == 0:
+            print('Awaiting Input')
             yield model, CLASSES#Image Classification
         step += 1
 

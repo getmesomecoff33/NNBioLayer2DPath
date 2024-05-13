@@ -54,7 +54,9 @@ class PaintApp(tk.Tk):
         self.last_x, self.last_y = None, None
 
     def save_image(self):
+        # Logic goes Here
         step = 1
+        correct = False # Set to buttom press
         image = self.image
         if self.model == None:
             return
@@ -65,9 +67,10 @@ class PaintApp(tk.Tk):
         image = render_image_path(self.model,image_nomalized, step)
         step += 1
         print(self.classes[predictedLabel])
-        outputTuple = next(self.modelEngine)
-        self.model = outputTuple[0]
-        self.classes = outputTuple[1]
+        if not  correct:
+            outputTuple = next(self.modelEngine)
+            self.model = outputTuple[0]
+            self.classes = outputTuple[1]
         
 
 def after_loo(app):
@@ -79,5 +82,6 @@ def after_loo(app):
 
 if __name__ == "__main__":
     app = PaintApp()
+    # Required for Startup
     app.after(1000, after_loo, app)
     app.mainloop()
