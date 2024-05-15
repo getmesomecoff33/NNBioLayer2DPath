@@ -1,7 +1,17 @@
-# NNBioLayerPathRender
+# Educational LED Wall
+
+This Repo contains the required code for the GWDG IdeenExpo24 project
+
+## Project Description
+
+WIP
+
+## NNBioLayerPathRender
 
 This repository contains the modifications and scripts to render the decision path through a BioLayer-Network. For more information please check out the original project:
-[Brain-inspired Modular Training](https://github.com/KindXiaoming/BIMT)
+[Brain-inspired Modular Training](https://github.com/KindXiaoming/BIMT).
+
+Modifyed to work with Google-Quickdraw-Dataset.
 
 ## Installation
 
@@ -10,34 +20,27 @@ WIP
 ## Dependencies
 
 See requierments.txt
+For using the Gui-Version tkinter is requiert
 
 Additional requierments can occure du to the used packages
 
 ## Usage
 
-### Train Network
+Make a new file named "config.json" to the projects top level dir.
+Within the file include the required datadirs. Required are:
 
-To train a network run `netz.py`
-All training related options can be found under the main-section of `netz.py`
+* DataPath: Path where all the data is located.
+* RawData: Dirname within DataPath where raw data is located.
+* ImagePath: For single image evaluation, path to the image.
+* ImageName: For single image evaluation, name of the image.
 
-### Show Rendered Path
-
-In `netz.py` set line 11:
-
-    SHOWFIGURE = True
-
-### Save Rendered Path
-
-In `netz.py`set line 12:
-
-    SAVEFIGURE = True
-
-By default the images are saved in ./results/mnist/
-
-### Take a Screenshot
-
-Run `makescreenshot.py`
-Currently not working du to attemted privilege escalation by the packackage.
+Run prepardata.py to create a torch trainingsdataset.
+Run gui.py to start the expo program.
+Wait for the program to great you in in the terminal (5-10 min).
+Draw an image using the input panel.
+Press "Waht is that?"-Button.
+The network will try to classify the image.
+Press green or red button respectivly to confirm the classification
 
 ## Limitations
 
