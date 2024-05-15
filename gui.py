@@ -28,11 +28,11 @@ class PaintApp(tk.Tk):
         self.canvas.bind("<B1-Motion>", self.paint)
 
         # Button to save the image
-        save_button = tk.Button(self, text="Bild speichern", command=self.save_image)
+        save_button = tk.Button(self, text="What is that?", command=self.save_image)
         save_button.pack(side=tk.LEFT, padx=10)
 
         # Button to clear the canvas
-        clear_button = tk.Button(self, text="Leinwand löschen", command=self.clear_canvas)
+        clear_button = tk.Button(self, text="Clear Pad", command=self.clear_canvas)
         clear_button.pack(side=tk.RIGHT, padx=10)
 
         self.image = Image.new("RGB", (800, 500), "white")

@@ -1,4 +1,12 @@
-# NNBioLayerPathRender
+# Educational LED Wall
+
+This Repo contains the required code for the GWDG IdeenExpo24 project
+
+## Project Description
+
+WIP
+
+## NNBioLayerPathRender
 
 This repository contains the modifications and scripts to render the decision path through a BioLayer-Network. For more information please check out the original project:
 [Brain-inspired Modular Training](https://github.com/KindXiaoming/BIMT).
@@ -26,8 +34,13 @@ Within the file include the required datadirs. Required are:
 * ImagePath: For single image evaluation, path to the image.
 * ImageName: For single image evaluation, name of the image.
 
-Run prepardata.py to create a torch trainingsdataset
-run net.py to beginn the trainingprocess
+Run prepardata.py to create a torch trainingsdataset.
+Run gui.py to start the expo program.
+Wait for the program to great you in in the terminal (5-10 min).
+Draw an image using the input panel.
+Press "Waht is that?"-Button.
+The network will try to classify the image.
+Press green or red button respectivly to confirm the classification
 
 ## Limitations
 
