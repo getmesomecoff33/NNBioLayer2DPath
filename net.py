@@ -9,15 +9,15 @@ import torch.utils.data
 import torchvision
 import matplotlib.pyplot as pyplot
 
-from PIL import Image
+from PIL import Image, ImageDraw
 from tqdm.auto import tqdm
 from itertools import islice
 from netzmodelle import BioMLP2D
 
 from makescreenshot import load_image
-from imageToWall import pipline_entry
+#from imageToWall import pipline_entry
 
-SHOWFIGURE = False
+SHOWFIGURE = True
 SAVEFIGURE = True
 
 DEBUG = False
@@ -46,6 +46,9 @@ IMAGETRANSFORMER = torchvision.transforms.Compose([torchvision.transforms.Graysc
 
 DATASIZE = 60000
 STEPS = 40000
+
+IMAGEWIDTH = 192
+IMAGEHEIGHT = 112
 
 DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
 
@@ -126,30 +129,45 @@ def eval_image(model, img_normalized):
         label = int(labelTensor[0])
         certainty = logits[0][label]
         return label, certainty
+    
+## INIT DRAWING CANVAS AND DRAWING RELATED STUFF
+def draw_connection_in_image(image, nodeLayer, layerNode, layerPlusNode,color):
+    layerCentersInImage =[1,33,65,97,129,162,191] 
+    layerPixel = layerCentersInImage[nodeLayer]
+    nextLayerPixel = layerCentersInImage[nodeLayer+1]
+    convertedColor = (int(color[0]*255),int(color[1]*255),int(color[2]*255))
+    layerOffset = 6
+    nextlayerOffset = 6
+    if nodeLayer == 5:
+        nextlayerOffset = 11
+    lineShape = [(layerPixel,int(layerNode)+layerOffset),(nextLayerPixel,int(layerPlusNode)+nextlayerOffset)]
+    imgDraw = ImageDraw.Draw(image)
+    imgDraw.line(lineShape,fill=convertedColor, width=0)
+    return image
+
+
+def init_image():
+    #The base image, shows allways
+    layerDistancePixel = 32
+    layerCentersInImage =[1,33,65,97,129,162]
+    image = Image.new('RGB', (IMAGEWIDTH, IMAGEHEIGHT))
+    imageDraw = ImageDraw.Draw(image)
+    for layer in layerCentersInImage:
+        layerShapeCenter = [(layer,6), (layer,106)]
+        layerShapeOutline = [(layer-1,6), (layer+1,106)]
+        imageDraw.rectangle(layerShapeOutline,fill="white")
+        imageDraw.rectangle(layerShapeCenter,fill="dimgrey")
+    # Last Layer
+    outNodes = [11,21,31,41,51,61,71,81,91,101]
+    for nodePixel in outNodes:
+        layerShapeOutline = [(190,nodePixel-3), (192,nodePixel+3)]
+        layerShapeINline = [(190,nodePixel-2), (192,nodePixel+2)]
+        imageDraw.rectangle(layerShapeOutline,fill="white")
+        imageDraw.rectangle(layerShapeINline,fill="dimgrey")
+    return image
 
 def render_image_path(model,img_normalizied,step):
-    #TODO
-    #Tensor label scheint nicht mit der scatternode uebereinzustimmen
-    # Bug in letzetn layer painter
-    # ADD FIGURE
-    figure = pyplot.figure(num=1, clear=True)
-    axes = figure.add_subplot()
-    number_of_layers = len(model.layers)
-    # PLOT NODES
-    # First Layer
-    axes.scatter(numpy.full((model.layers[0].linear.weight.shape[0]),numpy.linspace(0,100,model.layers[0].linear.weight.shape[0],endpoint=False)),numpy.full(model.layers[0].out_coordinates[:,0].detach().numpy().shape,0),s=5,alpha=0.5,color="black")
-    # Middle Layer
-    for layer_number in range(1,number_of_layers):
-        biolayer = model.layers[layer_number]
-        number_of_nodes = biolayer.linear.weight.shape[1]
-        nodes_distribution = numpy.full((number_of_nodes),range(number_of_nodes))
-        height = numpy.full(model.layers[layer_number].in_coordinates[:,0].detach().numpy().shape,layer_number)
-        axes.scatter(nodes_distribution,height,s=5,alpha=0.5,color="black")
-    #Output Layer
-    axes.scatter(numpy.full((model.layers[-1].linear.weight.shape[0]),range(0,100,model.layers[-1].linear.weight.shape[0])),numpy.full(model.layers[-1].out_coordinates[:,0].detach().numpy().shape,number_of_layers),s=5,alpha=0.5,color="black")
-    
-    
-    
+    image = init_image()    
     #DARK IMAGE MAGIC
     img_normalizied_1 = img_normalizied#img_normalized
     image_shape = img_normalizied.shape
@@ -163,14 +181,10 @@ def render_image_path(model,img_normalizied,step):
     for luLayer, weights, layer_number in layer_iterator:
         # BLACK TENSOR MAGIC
         tmp_out = luLayer
-        #if layer_number == number_of_layers - 1:
-         #   tmp_out = purLayer
         tmp_tensor_out = torch.squeeze(tmp_out).unsqueeze(1)
         tmp_tensor_in = torch.squeeze(tmp_in)
         tmp_in = tmp_out
-        #transition = tmp_tensor_in * weights
         transition = tmp_tensor_out * weights
-            
         max_path_value= transition.max()
         relevant_paths = (transition >= max_path_value/1.5).nonzero(as_tuple=False)
         for g in relevant_paths:
@@ -179,22 +193,17 @@ def render_image_path(model,img_normalizied,step):
             x = i * 100/tmp_tensor_in.shape[0]
             y = j * 100/tmp_tensor_out.shape[0]
             alpha = (transition[j,i]/max_path_value).item() if transition[j,i]/max_path_value>0.35 else 0
-            pyplot.plot([x,y], [layer_number,layer_number+1], lw=LINEWIDTH, alpha=alpha, color=CMAP(alpha))
-    #numpyAr
-        #for i in range(tmp_tensor_in.shape[0]):
-        #    for j in range(tmp_tensor_out.shape[0]):
-        #        x = i * 100/tmp_tensor_in.shape[0]
-        #        y = j * 100/tmp_tensor_out.shape[0]
-        #        alpha = (transition[j,i]/max_path_value).item() if transition[j,i]/max_path_value>0.35 else 0
-        #        pyplot.plot([x,y], [layer_number,layer_number+1], lw=LINEWIDTH, alpha=alpha, color=CMAP(alpha))
-    numpyArray = plot_to_array(figure)
-    if SHOWFIGURE:
-        pyplot.show()
+            image = draw_connection_in_image(image,layer_number,x,y,CMAP(alpha))
+
+        if SHOWFIGURE:
+            #TODO
+            #Send Image To Wall
+            pass
     if SAVEFIGURE:
-        pyplot.savefig('./results/mnist/{0:06d}.png'.format(step-1))
-    return numpyArray
+        image.save('./results/mnist/{0:06d}.png'.format(step-1),"PNG")
+    return None
 
-
+## MAIN TRAINING LOOP
 def yield_training_loop():
     train = load_Data("train")
     test = load_Data("test")
@@ -229,6 +238,7 @@ def yield_training_loop():
     weight_factor = 1.0#2.0
     swap_log = 50#500
     plot_log = 25#200#250
+    rand_log = 5
 
     pbar = tqdm(islice(cycle(train_loader), STEPS), total=STEPS,disable=True)
 
@@ -256,7 +266,10 @@ def yield_training_loop():
 
                 model.train()
                 pbar.set_description("{:3.3f} | {:3.3f} | {:3.3f} | {:3.3f} | {:3.3f} ".format(train_accuracies, test_accuracies, train_loss, test_loss, cc))
-
+        if step % rand_log == 0:
+            #TODO
+            #Show some Random images
+            pass 
         if step % swap_log  == 0:
             model.relocate()
         if (step -1) % plot_log == 0:
@@ -265,10 +278,4 @@ def yield_training_loop():
         step += 1
 
 if __name__ == '__main__':
-    step = 0
-    for model, classes in yield_training_loop():
-        img_normalized = load_image()
-        predictedLabel, certainty = eval_image(model, img_normalized=img_normalized)
-        image = render_image_path(model,img_normalized, step)
-        step += 1
-        print(classes[predictedLabel])
+    pass

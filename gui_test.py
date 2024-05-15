@@ -7,6 +7,7 @@ from net  import render_image_path
 from net import yield_training_loop
 from makescreenshot import load_image
 
+step = 1
 
 class PaintApp(tk.Tk):
     def __init__(self):
@@ -55,8 +56,7 @@ class PaintApp(tk.Tk):
 
     def save_image(self):
         # Logic goes Here
-        step = 1
-        correct = False # Set to buttom press
+        global step
         image = self.image
         if self.model == None:
             return
@@ -64,10 +64,16 @@ class PaintApp(tk.Tk):
             return
         image_nomalized = load_image(image)
         predictedLabel, certainty = eval_image(self.model, img_normalized=image_nomalized)
-        image = render_image_path(self.model,image_nomalized, step)
+        render_image_path(self.model,image_nomalized, step)
         step += 1
-        print(self.classes[predictedLabel])
+        print("I'am {} percent sure this is a {}".format(certainty*100,self.classes[predictedLabel]))
+        #TODO
+        #Wait for button input
+        #Button Rewards
+        #correct = is_correct button pressed
+        correct = False # Set to buttom press
         if not  correct:
+
             outputTuple = next(self.modelEngine)
             self.model = outputTuple[0]
             self.classes = outputTuple[1]
