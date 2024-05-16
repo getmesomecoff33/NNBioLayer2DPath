@@ -1,7 +1,6 @@
 import os
 import json
 import torch
-#import pyautogui
 import torchvision
 
 from PIL import Image

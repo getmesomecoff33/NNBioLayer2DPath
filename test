@@ -1,0 +1,10 @@
+def test_gen(u):
+    for i in range(4):
+        received = yield i *u
+        u = u if received is None else received
+
+gen = test_gen(4)
+print(next(gen))
+print(next(gen))
+gen.send(5)
+print(next(gen))

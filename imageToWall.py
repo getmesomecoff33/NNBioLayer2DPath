@@ -46,6 +46,7 @@ def send_image_to_esp32(image, pin_index):
 
 def pipline_entry(image):
     #Image is 640x480x4 (rgba)
+    return True
     frame = image
     for i, pin in enumerate(pins):
         strip = frame.crop((0, IMAGEWIDTH - 8 * (i + 1), IMAGEWIDTH, IMAGEHIGHT - 8 * i))
