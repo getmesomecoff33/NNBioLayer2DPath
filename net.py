@@ -15,7 +15,7 @@ from itertools import islice
 from netzmodelle import BioMLP2D
 
 from makescreenshot import load_image
-#from imageToWall import pipline_entry
+from imageToWall import pipline_entry
 
 SHOWFIGURE = True
 SAVEFIGURE = True
@@ -145,6 +145,24 @@ def draw_connection_in_image(image, nodeLayer, layerNode, layerPlusNode,color):
     imgDraw.line(lineShape,fill=convertedColor, width=0)
     return image
 
+def generate_random_path(image):
+    layers = [0,1,2,3,4]
+    for layer in layers:
+        numberOfConnections = random.randrange(5,25)
+        for connection in range(numberOfConnections):
+            inputNode = random.randrange(1,95)
+            outputNode = random.randrange(1,95)
+            alpha = random.randrange(35, 95)/100
+            image = draw_connection_in_image(image,layer,inputNode,outputNode,CMAP(alpha))
+    numberOfConnections = random.randrange(5,15)
+    for connection in range(numberOfConnections):
+        inputNode = random.randrange(1,95)
+        outputNode = random.randrange(1,10)*10
+        alpha = random.randrange(35, 95)/100
+        image = draw_connection_in_image(image,5,inputNode,outputNode,CMAP(alpha))
+    
+
+    return image
 
 def init_image():
     #The base image, shows allways
@@ -198,7 +216,7 @@ def render_image_path(model,img_normalizied,step):
         if SHOWFIGURE:
             #TODO
             #Send Image To Wall
-            pass
+            pipline_entry(image)
     if SAVEFIGURE:
         image.save('./results/mnist/{0:06d}.png'.format(step-1),"PNG")
     return None
@@ -269,6 +287,10 @@ def yield_training_loop():
         if step % rand_log == 0:
             #TODO
             #Show some Random images
+            image = init_image()
+            image = generate_random_path(image)
+            #Send image to wall
+            pipline_entry(image)
             pass 
         if step % swap_log  == 0:
             model.relocate()
@@ -278,4 +300,7 @@ def yield_training_loop():
         step += 1
 
 if __name__ == '__main__':
+    image = init_image()
+    image = generate_random_path(image)
+    image.show()
     pass
